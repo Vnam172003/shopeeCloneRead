@@ -94,7 +94,7 @@ export default function Profile() {
       avatar: '',
       date_of_birth: new Date(1990, 0, 1)
     },
-    resolver: yupResolver(profileSchema)
+    resolver: yupResolver<FormData>(profileSchema)
   })
   const {
     register,
@@ -110,14 +110,14 @@ export default function Profile() {
 
   useEffect(() => {
     if (profile) {
-      setValue('name', profile.name)
-      setValue('phone', profile.phone)
-      setValue('address', profile.address)
-      setValue('avatar', profile.avatar)
+      setValue('name', profile.name || '')
+      setValue('phone', profile.phone || '')
+      setValue('address', profile.address || '')
+      setValue('avatar', profile.avatar || '')
       setValue('date_of_birth', profile.date_of_birth ? new Date(profile.date_of_birth) : new Date(1990, 0, 1))
     }
   }, [profile, setValue])
-
+  console.log(profile)
   const onSubmit = handleSubmit(async (data) => {
     try {
       let avatarName = avatar
@@ -135,7 +135,7 @@ export default function Profile() {
       })
       setProfile(res.data.data)
       setProfileToLS(res.data.data)
-      refetch()
+      // refetch()
       toast.success(res.data.message)
     } catch (error) {
       if (isAxiosUnprocessableEntityError<ErrorResponse<FormDataError>>(error)) {
