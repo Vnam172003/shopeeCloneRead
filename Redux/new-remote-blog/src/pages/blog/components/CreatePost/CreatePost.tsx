@@ -1,11 +1,11 @@
-import { FetchBaseQueryError } from '@reduxjs/toolkit/dist/query'
 import classNames from 'classnames'
 import { useAddPostMutation, useGetPostQuery, useUpdatePostMutation } from 'pages/blog/blog.service'
+import { cancelEditPost } from 'pages/blog/blog.slice'
 import { Fragment, useEffect, useMemo, useState } from 'react'
-import { useSelector } from 'react-redux'
+import { useDispatch, useSelector } from 'react-redux'
 import { RootState } from 'store'
 import { Post } from 'types/blog.type'
-import { isEntityError, isFetchBaseQueryError } from 'utils/helpers'
+import { isEntityError } from 'utils/helpers'
 
 const initialState: Omit<Post, 'id'> = {
   description: '',
@@ -29,13 +29,19 @@ export default function CreatePost() {
   const [formData, setFormData] = useState<Omit<Post, 'id'> | Post>(initialState)
   const [addPost, addPostResult] = useAddPostMutation()
   const postId = useSelector((state: RootState) => state.blog.postId)
-  const { data, refetch } = useGetPostQuery(postId, {
+  // data vs currentData
+  // data: là kết quả mới nhất
+  // currentData: cũng là kết quả mới nhất, nhưng khi thay đổi tham số của function useGetPostQuery
+  // thì currentData sẽ reset lại undefined và sẽ được set lại khi fetch xong.
+
+  // Chúng ta dùng currentData khi không muốn trường hợp show data item 2
+  // mà nó bị dính data item 1 ở vài giây đầu đang fetch
+  const { currentData, refetch } = useGetPostQuery(postId, {
     skip: !postId,
-    refetchOnMountOrArgChange: 5,
-    pollingInterval: 1000
+    refetchOnFocus: false
   })
   const [updatePost, updatePostResult] = useUpdatePostMutation()
-
+  const dispatch = useDispatch()
   /**
    * Lỗi có thể đến từ `addPostResult` hoặc `updatePostResult`
    * Vậy chúng ta sẽ dựa vào điều kiện có postId hoặc không có (tức đang trong chế độ edit hay không) để show lỗi
@@ -43,9 +49,13 @@ export default function CreatePost() {
    * Chúng ta cũng không cần thiết phải tạo một state errorForm
    * Vì errorForm phụ thuộc vào `addPostResult`, `updatePostResult` và `postId` nên có thể dùng một biến để tính toán
    */
-
   const errorForm: FormError = useMemo(() => {
-    const errorResult = postId ? updatePostResult.error : addPostResult.error
+    let errorResult = null
+    if (postId && postId === updatePostResult.originalArgs?.id) {
+      errorResult = updatePostResult.error
+    } else if (!postId && addPostResult.error) {
+      errorResult = addPostResult.error
+    }
     // Vì errorResult có thể là FetchBaseQueryError | SerializedError | undefined, mỗi kiểu lại có cấu trúc khác nhau
     // nên chúng ta cần kiểm tra để hiển thị cho đúng
     if (isEntityError(errorResult)) {
@@ -57,10 +67,10 @@ export default function CreatePost() {
   }, [postId, updatePostResult, addPostResult])
 
   useEffect(() => {
-    if (data) {
-      setFormData(data)
+    if (currentData) {
+      setFormData(currentData)
     }
-  }, [data])
+  }, [currentData])
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -79,8 +89,14 @@ export default function CreatePost() {
     }
   }
 
+  const handleReset = () => {
+    setFormData(initialState)
+    dispatch(cancelEditPost())
+    updatePostResult.reset()
+  }
+
   return (
-    <form onSubmit={handleSubmit}>
+    <form onSubmit={handleSubmit} onReset={handleReset}>
       <button
         className='group relative inline-flex items-center justify-center overflow-hidden rounded-lg bg-gradient-to-br from-purple-600 to-blue-500 p-0.5 text-sm font-medium text-gray-900 hover:text-white focus:outline-none focus:ring-4 focus:ring-blue-300 group-hover:from-purple-600 group-hover:to-blue-500 dark:text-white dark:focus:ring-blue-800'
         type='button'
